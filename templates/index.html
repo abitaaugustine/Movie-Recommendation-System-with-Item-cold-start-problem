@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Recommender (Flask + Milvus)</title>
+    <!-- Basic Styling (Consider using Bootstrap or another CSS framework) -->
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+        }
+
+        .form-section,
+        .results-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .form-section h2,
+        .results-section h2 {
+            margin-top: 0;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"],
+        textarea,
+        input[type="number"],
+        input[type="date"] {
+            width: 95%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+
+        textarea {
+            height: 80px;
+        }
+
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .result-item {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+        }
+
+        .result-item:last-child {
+            border-bottom: none;
+        }
+
+        .flash-message {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .flash-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .flash-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        .flash-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        details summary {
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🎬 Movie Recommendation System (Flask + Milvus)</h1>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- Recommendation Section -->
+        <div class="form-section">
+            <h2>🔍 Recommend Movies</h2>
+            <form action="{{ url_for('recommend') }}" method="post">
+                <label for="title_query">Title (Optional):</label>
+                <input type="text" id="title_query" name="title_query">
+
+                <label for="overview_query">Overview/Plot (Optional):</label>
+                <textarea id="overview_query" name="overview_query"></textarea>
+
+                <label for="cast_query">Cast (Optional, comma-separated):</label>
+                <input type="text" id="cast_query" name="cast_query">
+
+                <label for="director_query">Director (Optional):</label>
+                <input type="text" id="director_query" name="director_query">
+
+                <label for="tagline_query">Tagline (Optional):</label>
+                <input type="text" id="tagline_query" name="tagline_query">
+
+                <label for="genres_query">Genres (Optional, comma-separated):</label>
+                <input type="text" id="genres_query" name="genres_query">
+
+                <label for="top_k">Number of recommendations:</label>
+                <input type="number" id="top_k" name="top_k" value="5" min="1" max="15">
+
+                <button type="submit">Recommend</button>
+            </form>
+        </div>
+
+        <!-- Recommendation Results -->
+        {% if recommendations is not none %}
+        <div class="results-section">
+            <h2>Recommendations</h2>
+            {% if recommendations %}
+            {% for movie in recommendations %}
+            <div class="result-item">
+                <h3>{{ loop.index }}. {{ movie.title }} <small>(Score: {{ "%.4f"|format(movie.distance) }})</small></h3>
+                <details>
+                    <summary>Details</summary>
+                    <p><strong>Release Date:</strong> {{ movie.release_date or 'N/A' }}</p>
+                    <p><strong>Director:</strong> {{ movie.director or 'N/A' }}</p>
+                    <p><strong>Cast:</strong> {{ movie.cast or 'N/A' }}</p>
+                    <p><strong>Genres:</strong> {{ movie.genres or 'N/A' }}</p>
+                    <p><strong>Overview:</strong> {{ movie.overview or 'N/A' }}</p>
+                </details>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p>No recommendations found based on your query.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+
+        <!-- Add Movie Section -->
+        <div class="form-section">
+            <h2>➕ Add New Movie (Item Cold Start)</h2>
+            <form action="{{ url_for('add') }}" method="post">
+                <label for="new_title">Title *:</label>
+                <input type="text" id="new_title" name="new_title" required>
+
+                <label for="new_overview">Overview *:</label>
+                <textarea id="new_overview" name="new_overview" required></textarea>
+
+                <label for="new_cast">Cast (comma-separated):</label>
+                <input type="text" id="new_cast" name="new_cast">
+
+                <label for="new_director">Director:</label>
+                <input type="text" id="new_director" name="new_director">
+
+                <label for="new_tagline">Tagline:</label>
+                <input type="text" id="new_tagline" name="new_tagline">
+
+                <label for="new_genres">Genres (comma-separated):</label>
+                <input type="text" id="new_genres" name="new_genres">
+
+                <label for="new_release_date">Release Date:</label>
+                <input type="date" id="new_release_date" name="new_release_date"> <!-- HTML5 date input -->
+
+                <button type="submit">Add Movie & Find Similar</button>
+            </form>
+        </div>
+
+        <!-- Add Movie Results -->
+        {% if add_results is not none %}
+        <div class="results-section">
+            <h2>Movies Similar to "{{ new_movie_title or 'Newly Added Movie' }}"</h2>
+            {% if add_results %}
+            {% for movie in add_results %}
+            <div class="result-item">
+                <h3>{{ loop.index }}. {{ movie.title }} <small>(Score: {{ "%.4f"|format(movie.distance) }})</small></h3>
+                <details>
+                    <summary>Details</summary>
+                    <p><strong>Release Date:</strong> {{ movie.release_date or 'N/A' }}</p>
+                    <p><strong>Director:</strong> {{ movie.director or 'N/A' }}</p>
+                    <p><strong>Cast:</strong> {{ movie.cast or 'N/A' }}</p>
+                    <p><strong>Genres:</strong> {{ movie.genres or 'N/A' }}</p>
+                    <p><strong>Overview:</strong> {{ movie.overview or 'N/A' }}</p>
+                </details>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p>No other similar movies found for the newly added item.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+    </div>
+</body>
+
+</html>
