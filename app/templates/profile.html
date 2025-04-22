@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Recommendations Profile</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body>
+
+    <div class="container">
+        <h1 class="text-center">Your Movie Profile</h1>
+
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <form id="profileForm">
+                    <div class="mb-3">
+                        <label for="userName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="userName" placeholder="Enter your name">
+                    </div>
+                    <div class="mb-3">
+                        <label for="userPreferences" class="form-label">Preferences</label>
+                        <input type="text" class="form-control" id="userPreferences"
+                            placeholder="Enter your preferences (e.g., action, comedy)">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Update Profile</button>
+                </form>
+            </div>
+            <div class="col-md-6">
+                <h3>Your Recommendations:</h3>
+                <div id="profileRecommendations">
+                    <!-- Profile-based movie recommendations will be shown here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('profileForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            const userName = document.getElementById('userName').value;
+            const userPreferences = document.getElementById('userPreferences').value;
+
+            if (userName.trim() === '' || userPreferences.trim() === '') {
+                alert('Please fill out all fields!');
+                return;
+            }
+
+            // Example of making an API call for profile-based recommendations
+            fetch('/profile', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: userName,
+                    preferences: userPreferences
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    const profileRecommendationsDiv = document.getElementById('profileRecommendations');
+                    profileRecommendationsDiv.innerHTML = ''; // Clear previous results
+
+                    data.forEach(movie => {
+                        const movieCard = `
+                    <div class="card">
+                        <img src="${movie.poster}" class="card-img-top" alt="Movie Poster">
+                        <div class="card-body">
+                            <h5 class="card-title">${movie.title}</h5>
+                            <p class="card-text">${movie.overview}</p>
+                        </div>
+                    </div>
+                `;
+                        profileRecommendationsDiv.innerHTML += movieCard;
+                    });
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while fetching recommendations.');
+                });
+        });
+    </script>
+
+</body>
+
+</html>
