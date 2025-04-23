@@ -4,6 +4,8 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 import os
 import logging # Use logging instead of print for better tracking
+from collections import defaultdict
+import math # For rank aggregation scoring
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -23,6 +25,7 @@ SEARCH_FIELD = "overview_embedding" # Field to search against primarily
 # Note: This is non-persistent. For production, use a database.
 user_profiles = {} # { user_id: {"name": "...", "preferences": set([movie_id1, movie_id2, ...])} }
 
+
 # --- Milvus Connection ---
 def connect_to_milvus():
     """Establishes connection to Milvus."""
@@ -34,6 +37,7 @@ def connect_to_milvus():
     except Exception as e:
         logging.error(f"Failed to connect to Milvus: {e}")
         return False
+
 
 def get_milvus_collection():
     """Gets the Milvus collection object, creating it if it doesn't exist."""
@@ -105,6 +109,7 @@ def get_milvus_collection():
         return None
     return collection
 
+
 # --- Data Loading and Preprocessing ---
 def load_and_prepare_data(filepath):
     """Loads movie data and prepares it."""
@@ -128,6 +133,7 @@ def load_and_prepare_data(filepath):
         logging.error(f"Error loading data: {e}")
         return None
 
+
 # --- Embedding Generation ---
 model = None
 def get_embedding_model():
@@ -143,6 +149,7 @@ def get_embedding_model():
             return None
     return model
 
+
 def generate_embeddings(texts):
     """Generates embeddings for a list of texts. Handles empty strings."""
     embedding_model = get_embedding_model()
@@ -156,6 +163,7 @@ def generate_embeddings(texts):
     except Exception as e:
         logging.error(f"Error generating embeddings: {e}")
         return None
+
 
 def generate_multiple_embeddings(df, fields_to_embed):
     """Generates separate embeddings for specified fields in a DataFrame."""
@@ -171,6 +179,7 @@ def generate_multiple_embeddings(df, fields_to_embed):
         embeddings_dict[f"{field}_embedding"] = embeddings
         logging.info(f"Finished embeddings for field: {field}")
     return embeddings_dict
+
 
 # --- Milvus Operations ---
 def insert_data_to_milvus(collection, df, embeddings_dict):
@@ -205,6 +214,7 @@ def insert_data_to_milvus(collection, df, embeddings_dict):
     except Exception as e:
         logging.error(f"Error inserting data into Milvus: {e}")
         return None
+
 
 def search_similar_movies(collection, query_embedding, search_field=SEARCH_FIELD, top_k=5, exclude_ids=None):
     """Searches for similar movies based on a query embedding against a specific field, optionally excluding IDs."""
@@ -266,6 +276,7 @@ def search_similar_movies(collection, query_embedding, search_field=SEARCH_FIELD
         logging.error(f"Error searching in Milvus: {e}")
         return []
 
+
 def add_new_movie(collection, movie_data):
     """Adds a single new movie with multiple embeddings to Milvus."""
     # Generate embeddings for each relevant field
@@ -312,6 +323,7 @@ def add_new_movie(collection, movie_data):
         logging.error(f"Error inserting new movie: {e}")
         return None, None
 
+
 # --- User Profile Functions ---
 def get_or_create_user(user_id, name=""):
     """Gets or creates a user profile in the in-memory store."""
@@ -319,6 +331,7 @@ def get_or_create_user(user_id, name=""):
         user_profiles[user_id] = {"name": name if name else f"User_{user_id}", "preferences": set()}
         logging.info(f"Created profile for user ID: {user_id}")
     return user_profiles[user_id]
+
 
 def add_movie_preference(user_id, movie_id):
     """Adds a movie ID to the user's preferences."""
@@ -336,6 +349,7 @@ def add_movie_preference(user_id, movie_id):
     else:
         logging.info(f"Movie ID {movie_id} already in preferences for user {user_id}.")
         return False
+
 
 def get_movie_embeddings_by_ids(collection, movie_ids, embedding_field=SEARCH_FIELD):
     """Retrieves embeddings for a list of movie IDs from Milvus."""
@@ -358,39 +372,165 @@ def get_movie_embeddings_by_ids(collection, movie_ids, embedding_field=SEARCH_FI
         logging.error(f"Error querying embeddings by IDs: {e}")
         return []
 
-def get_user_recommendations(user_id, collection, top_k=5):
-    """Generates movie recommendations based on user's preferences."""
+
+def calculate_user_similarity(target_user_id, all_user_profiles):
+    """Calculates Jaccard similarity between the target user and all other users."""
+    if target_user_id not in all_user_profiles:
+        return []
+
+    target_prefs = all_user_profiles[target_user_id].get("preferences", set())
+    if not target_prefs:
+        return [] # Cannot calculate similarity without preferences
+
+    similarities = []
+    for other_user_id, profile in all_user_profiles.items():
+        if other_user_id == target_user_id:
+            continue
+
+        other_prefs = profile.get("preferences", set())
+        if not other_prefs:
+            continue
+
+        intersection = len(target_prefs.intersection(other_prefs))
+        union = len(target_prefs.union(other_prefs))
+
+        if union == 0:
+            similarity = 0
+        else:
+            similarity = intersection / union
+
+        if similarity > 0: # Only consider users with some overlap
+            similarities.append({"user_id": other_user_id, "score": similarity})
+
+    # Sort by similarity score descending
+    similarities.sort(key=lambda x: x["score"], reverse=True)
+    return similarities
+
+
+def get_collaborative_recommendations(target_user_id, all_user_profiles, top_n_users=10, min_similarity=0.1):
+    """Generates recommendations based on similar users' preferences (User-Based CF)."""
+    target_profile = all_user_profiles.get(target_user_id)
+    if not target_profile:
+        return {} # Return empty dict
+
+    target_prefs = target_profile.get("preferences", set())
+    similar_users = calculate_user_similarity(target_user_id, all_user_profiles)
+
+    # Aggregate recommendations from similar users
+    item_scores = defaultdict(float)
+    users_contributed = defaultdict(int)
+
+    for sim_user_info in similar_users[:top_n_users]:
+        user_id = sim_user_info["user_id"]
+        similarity_score = sim_user_info["score"]
+
+        if similarity_score < min_similarity:
+            continue # Skip users below minimum similarity threshold
+
+        other_prefs = all_user_profiles[user_id].get("preferences", set())
+
+        for item_id in other_prefs:
+            if item_id not in target_prefs: # Recommend only items not already preferred by target user
+                item_scores[item_id] += similarity_score
+                users_contributed[item_id] += 1
+
+    # Convert scores dictionary to a list of {"id": item_id, "score": score}
+    collab_recs_list = [{"id": item_id, "score": item_scores[item_id]} for item_id in item_scores]
+
+    # Sort recommendations by score
+    collab_recs_list.sort(key=lambda x: x["score"], reverse=True)
+
+    return collab_recs_list
+
+
+def get_user_recommendations(user_id, collection, top_k=10, content_weight=0.6, collab_weight=0.4):
+    """
+    Generates movie recommendations using a HYBRID approach:
+    Content-Based (average embedding) + Collaborative Filtering (user-based).
+    Uses Rank Aggregation (Borda Count variation).
+    """
     profile = get_or_create_user(user_id)
-    preferences = profile["preferences"]
+    preferences = profile.get("preferences", set())
 
     if not preferences:
-        logging.info(f"User {user_id} has no preferences. Cannot generate recommendations.")
+        logging.info(f"User {user_id} has no preferences. Cannot generate hybrid recommendations.")
+        # Optionally return purely popular items or random items here
         return []
 
-    logging.info(f"Generating recommendations for user {user_id} based on {len(preferences)} preferences.")
+    logging.info(f"Generating HYBRID recommendations for user {user_id} based on {len(preferences)} preferences.")
 
-    # 1. Get embeddings for preferred movies
+    # --- 1. Content-Based Component ---
+    content_recs = []
     preferred_embeddings = get_movie_embeddings_by_ids(collection, list(preferences), SEARCH_FIELD)
+    if preferred_embeddings:
+        avg_embedding = np.mean(np.array(preferred_embeddings), axis=0).tolist()
+        # Fetch more initially to allow for merging/filtering
+        content_recs_raw = search_similar_movies(
+            collection,
+            avg_embedding,
+            search_field=SEARCH_FIELD,
+            top_k=top_k * 2, # Fetch more for ranking
+            exclude_ids=preferences
+        )
+        # Keep only IDs and a score (higher is better, use 1/(1+dist))
+        content_recs = [{"id": r["id"], "score": 1.0 / (1.0 + r["distance"])} for r in content_recs_raw]
+        logging.info(f"Content-Based component found {len(content_recs)} candidates.")
+    else:
+        logging.warning(f"Could not retrieve embeddings for user {user_id}'s preferences for content-based part.")
 
-    if not preferred_embeddings:
-        logging.warning(f"Could not retrieve embeddings for user {user_id}'s preferences.")
-        return []
 
-    # 2. Calculate average embedding (simple approach)
-    avg_embedding = np.mean(np.array(preferred_embeddings), axis=0).tolist()
+    # --- 2. Collaborative Filtering Component ---
+    # Pass the global user_profiles dictionary (or fetch from DB if using one)
+    collab_recs = get_collaborative_recommendations(user_id, user_profiles, top_n_users=20)
+    logging.info(f"Collaborative Filtering component found {len(collab_recs)} candidates.")
 
-    # 3. Search for similar movies using the average embedding
-    #    Exclude movies already in preferences
-    recommendations = search_similar_movies(
-        collection,
-        avg_embedding,
-        search_field=SEARCH_FIELD,
-        top_k=top_k,
-        exclude_ids=preferences
-    )
+    # --- 3. Hybridization (Rank Aggregation - Borda Count Style) ---
+    final_scores = defaultdict(float)
+    max_rank_points = top_k # Assign points based on rank
 
-    logging.info(f"Found {len(recommendations)} recommendations for user {user_id}.")
-    return recommendations
+    # Assign points for content-based ranks
+    for rank, rec in enumerate(content_recs[:top_k]): # Consider top_k from content
+        points = max_rank_points - rank
+        final_scores[rec['id']] += content_weight * points # Weighted points
+
+    # Assign points for collaborative filtering ranks
+    for rank, rec in enumerate(collab_recs[:top_k]): # Consider top_k from collab
+        points = max_rank_points - rank
+        final_scores[rec['id']] += collab_weight * points # Weighted points
+
+    # Sort final recommendations by aggregated score
+    sorted_hybrid_ids = sorted(final_scores.keys(), key=lambda x: final_scores[x], reverse=True)
+
+    # --- 4. Fetch Details for Top K Hybrid Results ---
+    final_recommendations = []
+    if sorted_hybrid_ids:
+        top_hybrid_ids = sorted_hybrid_ids[:top_k]
+        logging.info(f"Top {len(top_hybrid_ids)} hybrid recommendation IDs: {top_hybrid_ids}")
+
+        # Query Milvus to get full details for the final list
+        if top_hybrid_ids:
+             try:
+                 expr = f"id in {top_hybrid_ids}"
+                 results = collection.query(
+                     expr=expr,
+                     output_fields=["id", "original_title", "overview", "cast", "director", "genres", "release_date"]
+                 )
+                 # Create a map for easy lookup
+                 results_map = {res['id']: res for res in results}
+                 # Build final list in the sorted order
+                 for movie_id in top_hybrid_ids:
+                     if movie_id in results_map:
+                          movie_details = results_map[movie_id]
+                          # Add the hybrid score for potential display/debugging
+                          movie_details['hybrid_score'] = final_scores[movie_id]
+                          final_recommendations.append(movie_details)
+
+             except Exception as e:
+                 logging.error(f"Error fetching details for hybrid recommendations: {e}")
+                 # Fallback or return empty might be needed
+
+    logging.info(f"Generated {len(final_recommendations)} final hybrid recommendations for user {user_id}.")
+    return final_recommendations
 
 
 # --- Initial Setup ---

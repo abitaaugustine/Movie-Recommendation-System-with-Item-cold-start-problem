@@ -127,22 +127,22 @@
 
         {% if user_recommendations %}
         <div class="card">
-            <h4>Personalized Recommendations For You</h4>
+            <h4>Personalized Hybrid Recommendations For You</h4>
             {% if user_recommendations %}
             <ul>
                 {% for rec in user_recommendations %}
                 <li>
-                    <strong>{{ rec.title }}</strong> (ID: {{ rec.id }})
+                    <strong>{{ rec.original_title }}</strong> (ID: {{ rec.id }})
                     <br>
                     <small>Overview: {{ rec.overview | truncate(150) }}</small><br>
                     <small>Genres: {{ rec.genres }} | Cast: {{ rec.cast | truncate(100) }} | Director: {{
                         rec.director}}</small><br>
-                    <small>Distance: {{ "%.4f"|format(rec.distance) }}</small><br>
+                    <small>Hybrid Score: {{ "%.4f"|format(rec.hybrid_score) }}</small><br>
                     <!-- Add Preference Button -->
                     <form action="{{ url_for('add_preference') }}" method="post"
                         style="display: inline; margin-left: 10px;">
                         <input type="hidden" name="movie_id" value="{{ rec.id }}">
-                        <input type="hidden" name="movie_title" value="{{ rec.title }}">
+                        <input type="hidden" name="movie_title" value="{{ rec.original_title }}">
                         <button type="submit" class="btn btn-primary btn-sm">Add to Preferences</button>
                     </form>
                 </li>

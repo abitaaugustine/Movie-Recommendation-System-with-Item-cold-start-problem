@@ -66,6 +66,7 @@ def index():
                            available_facets=AVAILABLE_FACETS, # Pass facets to template
                            selected_facet=DEFAULT_FACET_KEY) # Pass default facet
 
+
 @app.route('/set_user', methods=['POST'])
 def set_user():
     """Sets the user ID in the session."""
@@ -78,6 +79,7 @@ def set_user():
     else:
         flash("Please enter a User ID.", "warning")
     return redirect(url_for('index'))
+
 
 @app.route('/recommend', methods=['POST'])
 def recommend():
@@ -237,8 +239,8 @@ def add():
         flash(f"An error occurred while adding the movie: {e}", "danger")
         return redirect(url_for('index'))
 
-# --- User Profile Routes ---
 
+# --- User Profile Routes ---
 @app.route('/profile')
 def profile():
     """Displays the current user's profile and preferences."""
@@ -270,6 +272,7 @@ def profile():
                            user_profile=user_profile,
                            preferences_list=preferences_list,
                            user_recommendations=None) # Initially no recommendations shown
+
 
 @app.route('/add_preference', methods=['POST'])
 def add_preference():
@@ -306,7 +309,7 @@ def add_preference():
 
 @app.route('/user_recommendations')
 def user_recommendations():
-    """Generates and displays personalized recommendations for the current user."""
+    """Generates and displays personalized HYBRID recommendations for the current user."""
     user_id = session.get('user_id')
     if not user_id:
         flash("Please set a User ID first.", "warning")
@@ -318,12 +321,12 @@ def user_recommendations():
 
     try:
         top_k = 5 # Or get from request args: int(request.args.get('top_k', 5))
-        print(f"Getting recommendations for user: {user_id}")
+        print(f"Getting HYBRID recommendations for user: {user_id}")
         recommendations = mrs.get_user_recommendations(user_id, collection, top_k=top_k)
         print(f"Found {len(recommendations)} user recommendations.")
 
         if not recommendations:
-            flash("Could not generate recommendations. Add more preferences!", "info")
+            flash("Could not generate recommendations. Add more preferences or explore general search!", "info")
             # Still render profile page, but without recommendations section
             return redirect(url_for('profile')) # Redirect back to profile
 
