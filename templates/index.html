@@ -6,126 +6,19 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Movie Recommender</title>
-    <!-- Basic Styling (Consider using Bootstrap or another framework) -->
+    <!-- Basic Styling -->
     <style>
-        body {
-            font-family: sans-serif;
-            margin: 20px;
-        }
-
-        .container {
-            max-width: 900px;
-            margin: auto;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-        }
-
-        input[type="text"],
-        input[type="number"],
-        textarea {
-            width: 95%;
+        /* ... existing styles ... */
+        select {
+            width: 98%;
+            /* Match input width */
             padding: 8px;
             border: 1px solid #ccc;
             border-radius: 4px;
-        }
-
-        textarea {
-            height: 80px;
-        }
-
-        .btn {
-            padding: 10px 15px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        .btn-primary {
-            background-color: #007bff;
-            color: white;
-        }
-
-        .btn-secondary {
-            background-color: #6c757d;
-            color: white;
-        }
-
-        .btn-sm {
-            padding: 5px 10px;
-            font-size: 0.8em;
-        }
-
-        .results,
-        .add-results {
-            margin-top: 20px;
-        }
-
-        .result-item,
-        .add-item {
-            border: 1px solid #eee;
-            border-radius: 5px;
-            padding: 15px;
-            margin-bottom: 15px;
-        }
-
-        .result-item h4,
-        .add-item h4 {
-            margin-top: 0;
-        }
-
-        .alert {
-            padding: 15px;
-            margin-bottom: 20px;
-            border: 1px solid transparent;
-            border-radius: 4px;
-        }
-
-        .alert-success {
-            color: #155724;
-            background-color: #d4edda;
-            border-color: #c3e6cb;
-        }
-
-        .alert-info {
-            color: #0c5460;
-            background-color: #d1ecf1;
-            border-color: #bee5eb;
-        }
-
-        .alert-warning {
-            color: #856404;
-            background-color: #fff3cd;
-            border-color: #ffeeba;
-        }
-
-        .alert-danger {
-            color: #721c24;
-            background-color: #f8d7da;
-            border-color: #f5c6cb;
-        }
-
-        .user-section {
-            background-color: #f8f9fa;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        hr {
-            margin-top: 20px;
-            margin-bottom: 20px;
-            border: 0;
-            border-top: 1px solid #eee;
+            background-color: white;
+            /* Ensure background */
+            height: 36px;
+            /* Match input height */
         }
     </style>
 </head>
@@ -162,6 +55,17 @@
         <!-- Recommendation Form -->
         <h2>Find Similar Movies</h2>
         <form action="{{ url_for('recommend') }}" method="post">
+            <!-- Add Search Facet Selector -->
+            <div class="form-group">
+                <label for="search_facet">Search Based On:</label>
+                <select id="search_facet" name="search_facet">
+                    {% for key, display_name in available_facets.items() %}
+                    <option value="{{ key }}" {% if key==selected_facet %}selected{% endif %}>{{ display_name }}
+                    </option>
+                    {% endfor %}
+                    <!-- <option value="combined" {% if 'combined' == selected_facet %}selected{% endif %}>Combined Text</option> -->
+                </select>
+            </div>
             <div class="form-group">
                 <label for="title_query">Title:</label>
                 <input type="text" id="title_query" name="title_query">
@@ -196,13 +100,15 @@
         <!-- Recommendation Results -->
         {% if recommendations %}
         <div class="results">
-            <h3>Recommendations</h3>
+            <!-- Optionally indicate which facet was used -->
+            <h3>Recommendations (Based on: {{ available_facets.get(selected_facet, 'Unknown') }})</h3>
             {% for rec in recommendations %}
             <div class="result-item">
                 <h4>{{ rec.title }} (ID: {{ rec.id }})</h4>
                 <p><strong>Overview:</strong> {{ rec.overview }}</p>
                 <p><strong>Cast:</strong> {{ rec.cast }} | <strong>Director:</strong> {{ rec.director }} |
-                    <strong>Genres:</strong> {{ rec.genres }}</p>
+                    <strong>Genres:</strong> {{ rec.genres }}
+                </p>
                 <p><small>Release Date: {{ rec.release_date }} | Distance: {{ "%.4f"|format(rec.distance) }}</small></p>
                 <!-- Add Preference Button -->
                 {% if user_id != 'guest' %}
@@ -254,8 +160,10 @@
         </form>
 
         <!-- Add Movie Results -->
+        <!-- Feature 1: Explicit Similar Content Display -->
         {% if add_results is not none %}
         <div class="add-results">
+            <!-- This section already implements Feature 1 -->
             <h3>Movies Similar to "{{ new_movie_title }}" (Newly Added)</h3>
             {% if add_results %}
             {% for res in add_results %}
@@ -263,7 +171,8 @@
                 <h4>{{ res.title }} (ID: {{ res.id }})</h4>
                 <p><strong>Overview:</strong> {{ res.overview }}</p>
                 <p><strong>Cast:</strong> {{ res.cast }} | <strong>Director:</strong> {{ res.director }} |
-                    <strong>Genres:</strong> {{ res.genres }}</p>
+                    <strong>Genres:</strong> {{ res.genres }}
+                </p>
                 <p><small>Release Date: {{ res.release_date }} | Distance: {{ "%.4f"|format(res.distance) }}</small></p>
                 <!-- Add Preference Button -->
                 {% if user_id != 'guest' %}
