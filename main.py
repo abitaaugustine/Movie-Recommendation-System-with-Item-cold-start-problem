@@ -46,19 +46,19 @@ def get_milvus_collection():
         collection = Collection(name=COLLECTION_NAME)
         # Ensure collection is loaded before use
         if not collection.has_index(index_name=f"_{SEARCH_FIELD}_index"): # Check if index exists (adjust name if needed)
-             logging.warning(f"Index not found on {SEARCH_FIELD}. Attempting to create.")
-             # Re-create index if missing (consider if this is desired behavior)
-             index_params = {
-                 "metric_type": "L2",
-                 "index_type": "IVF_FLAT",
-                 "params": {"nlist": 128}
-             }
-             try:
-                 collection.create_index(field_name=SEARCH_FIELD, index_params=index_params)
-                 logging.info(f"Index created on {SEARCH_FIELD}.")
-             except Exception as e:
-                 logging.error(f"Failed to create index: {e}")
-                 # Decide how to handle this - maybe return None or raise error
+            logging.warning(f"Index not found on {SEARCH_FIELD}. Attempting to create.")
+            # Re-create index if missing (consider if this is desired behavior)
+            index_params = {
+                "metric_type": "L2",
+                "index_type": "IVF_FLAT",
+                "params": {"nlist": 128}
+            }
+            try:
+                collection.create_index(field_name=SEARCH_FIELD, index_params=index_params)
+                logging.info(f"Index created on {SEARCH_FIELD}.")
+            except Exception as e:
+                logging.error(f"Failed to create index: {e}")
+                # Decide how to handle this - maybe return None or raise error
         try:
             collection.load()
             logging.info(f"Collection '{COLLECTION_NAME}' loaded.")
@@ -122,8 +122,8 @@ def load_and_prepare_data(filepath):
         df = df[required_cols].fillna('')
         # Ensure text fields are strings
         for col in EMBED_FIELDS + ['director', 'tagline', 'release_date']: # Include non-embedded text fields
-             if col in df.columns:
-                 df[col] = df[col].astype(str)
+            if col in df.columns:
+                df[col] = df[col].astype(str)
         logging.info(f"Loaded {len(df)} records.")
         return df
     except FileNotFoundError:
@@ -293,8 +293,8 @@ def add_new_movie(collection, movie_data):
             primary_embedding = embedding[0] # Get the vector itself
 
     if not primary_embedding:
-         logging.error(f"Could not get primary search embedding ({SEARCH_FIELD}) for the new movie.")
-         return None, None
+        logging.error(f"Could not get primary search embedding ({SEARCH_FIELD}) for the new movie.")
+        return None, None
 
     # Prepare data for insertion (list of lists for each field) - ensure order matches schema
     data_to_insert = [
@@ -509,25 +509,25 @@ def get_user_recommendations(user_id, collection, top_k=10, content_weight=0.6, 
 
         # Query Milvus to get full details for the final list
         if top_hybrid_ids:
-             try:
-                 expr = f"id in {top_hybrid_ids}"
-                 results = collection.query(
-                     expr=expr,
-                     output_fields=["id", "original_title", "overview", "cast", "director", "genres", "release_date"]
-                 )
-                 # Create a map for easy lookup
-                 results_map = {res['id']: res for res in results}
-                 # Build final list in the sorted order
-                 for movie_id in top_hybrid_ids:
-                     if movie_id in results_map:
-                          movie_details = results_map[movie_id]
-                          # Add the hybrid score for potential display/debugging
-                          movie_details['hybrid_score'] = final_scores[movie_id]
-                          final_recommendations.append(movie_details)
+            try:
+                expr = f"id in {top_hybrid_ids}"
+                results = collection.query(
+                    expr=expr,
+                    output_fields=["id", "original_title", "overview", "cast", "director", "genres", "release_date"]
+                )
+                # Create a map for easy lookup
+                results_map = {res['id']: res for res in results}
+                # Build final list in the sorted order
+                for movie_id in top_hybrid_ids:
+                    if movie_id in results_map:
+                        movie_details = results_map[movie_id]
+                        # Add the hybrid score for potential display/debugging
+                        movie_details['hybrid_score'] = final_scores[movie_id]
+                        final_recommendations.append(movie_details)
 
-             except Exception as e:
-                 logging.error(f"Error fetching details for hybrid recommendations: {e}")
-                 # Fallback or return empty might be needed
+            except Exception as e:
+                logging.error(f"Error fetching details for hybrid recommendations: {e}")
+                # Fallback or return empty might be needed
 
     logging.info(f"Generated {len(final_recommendations)} final hybrid recommendations for user {user_id}.")
     return final_recommendations
@@ -547,21 +547,21 @@ def initial_setup():
     # Check if collection is empty only after ensuring it's loaded
     try:
         if collection.is_empty: # Use is_empty property if available and collection is loaded
-             logging.info("Collection is empty. Performing initial data load...")
-             df = load_and_prepare_data(DATA_PATH)
-             if df is not None:
-                 # Load a subset initially
-                 df_subset = df.head(1000) # Use the value from the selection
-                 logging.info(f"Generating multiple embeddings for {len(df_subset)} movies...")
-                 embeddings_dict = generate_multiple_embeddings(df_subset, EMBED_FIELDS)
-                 if embeddings_dict:
-                     insert_data_to_milvus(collection, df_subset, embeddings_dict)
-                 else:
-                     logging.error("Failed to generate embeddings for initial data.")
-             else:
-                  logging.warning("Failed to load initial data. Collection remains empty.")
+            logging.info("Collection is empty. Performing initial data load...")
+            df = load_and_prepare_data(DATA_PATH)
+            if df is not None:
+                # Load a subset initially
+                df_subset = df.head(1000) # Use the value from the selection
+                logging.info(f"Generating multiple embeddings for {len(df_subset)} movies...")
+                embeddings_dict = generate_multiple_embeddings(df_subset, EMBED_FIELDS)
+                if embeddings_dict:
+                    insert_data_to_milvus(collection, df_subset, embeddings_dict)
+                else:
+                    logging.error("Failed to generate embeddings for initial data.")
+            else:
+                logging.warning("Failed to load initial data. Collection remains empty.")
         else:
-             logging.info(f"Collection '{COLLECTION_NAME}' already contains {collection.num_entities} entities.")
+            logging.info(f"Collection '{COLLECTION_NAME}' already contains {collection.num_entities} entities.")
     except Exception as e:
         logging.error(f"Error checking collection status or loading initial data: {e}")
         # Decide how to proceed, maybe return None
@@ -612,14 +612,14 @@ if __name__ == "__main__":
         # Note: These IDs are placeholders from auto_id and will be different in your run.
         # Query your collection to get valid IDs for testing.
         try:
-             query_res = collection.query(expr="id > 0", limit=2, output_fields=["id"])
-             if len(query_res) >= 2:
-                 add_movie_preference(user_id_1, query_res[0]['id'])
-                 add_movie_preference(user_id_2, query_res[1]['id'])
-             else:
-                 logging.warning("Could not retrieve enough existing movie IDs for preference testing.")
+            query_res = collection.query(expr="id > 0", limit=2, output_fields=["id"])
+            if len(query_res) >= 2:
+                add_movie_preference(user_id_1, query_res[0]['id'])
+                add_movie_preference(user_id_2, query_res[1]['id'])
+            else:
+                logging.warning("Could not retrieve enough existing movie IDs for preference testing.")
         except Exception as e:
-             logging.error(f"Failed to query existing movie IDs: {e}")
+            logging.error(f"Failed to query existing movie IDs: {e}")
 
 
         print("\n--- User Profiles ---")

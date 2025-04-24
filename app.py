@@ -124,18 +124,18 @@ def recommend():
         # elif search_facet_key == 'overview':
         #     query_text = overview_query
         else: # Default to overview or a combination if overview is empty
-             query_text = overview_query if overview_query else f"{title_query} {cast_query} {genres_query}"
+            query_text = overview_query if overview_query else f"{title_query} {cast_query} {genres_query}"
 
 
         # Ensure there is *some* text to search with, even if not the primary facet field
         if not query_text:
-             query_text = f"{title_query} {overview_query} {cast_query} {director_query} {genres_query} {tagline_query}"
+            query_text = f"{title_query} {overview_query} {cast_query} {director_query} {genres_query} {tagline_query}"
 
 
         if not query_text.strip('.'):
-             flash("Please provide some details to search for.", "warning")
-             # Need to pass facets back even on redirect/error render
-             return render_template('index.html',
+            flash("Please provide some details to search for.", "warning")
+            # Need to pass facets back even on redirect/error render
+            return render_template('index.html',
                                     recommendations=None, add_results=None, new_movie_title=None,
                                     user_id=user_id, available_facets=AVAILABLE_FACETS,
                                     selected_facet=search_facet_key)
