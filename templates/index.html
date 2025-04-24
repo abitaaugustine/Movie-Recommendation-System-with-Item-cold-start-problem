@@ -5,39 +5,136 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Movie Recommender</title>
-    <!-- Basic Styling -->
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <style>
-        /* ... existing styles ... */
-        select {
-            width: 98%;
-            /* Match input width */
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            background-color: white;
-            /* Ensure background */
-            height: 36px;
-            /* Match input height */
+        :root {
+            --light-bg: #f8f9fa;
+            /* Very light grey */
+            --section-bg: #ffffff;
+            /* White for cards/sections */
+            --primary-color: #0d6efd;
+            /* Bootstrap primary blue */
+            --secondary-color: #6c757d;
+            /* Bootstrap secondary grey */
+            --success-color: #198754;
+            /* Bootstrap success green */
+            --text-color: #212529;
+            /* Default dark text */
+            --muted-text-color: #6c757d;
+            /* Muted grey text */
+            --border-color: #dee2e6;
+            /* Light border color */
+        }
+
+        body {
+            padding-top: 20px;
+            padding-bottom: 20px;
+            background-color: var(--light-bg);
+            /* Use light background */
+            color: var(--text-color);
+        }
+
+        .card {
+            background-color: var(--section-bg);
+            /* White background for cards */
+            border: 1px solid var(--border-color);
+            /* Subtle border */
+        }
+
+        .result-item,
+        .add-item {
+            margin-bottom: 1.5rem;
+        }
+
+        .user-section {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background-color: #e9ecef;
+            /* Slightly darker grey for user section */
+            border-radius: 0.375rem;
+            border: 1px solid var(--border-color);
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            color: var(--text-color);
+            /* Ensure headings use default dark text */
+        }
+
+        .text-muted {
+            color: var(--muted-text-color) !important;
+            /* Ensure muted text uses the variable */
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+
+        .btn-secondary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-outline-primary {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-outline-primary:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-outline-success {
+            color: var(--success-color);
+            border-color: var(--success-color);
+        }
+
+        .btn-outline-success:hover {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+
+        hr {
+            margin: 2rem 0;
+            border-top: 1px solid var(--border-color);
         }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <h1>Movie Recommender</h1>
+        <h1 class="mb-4">Movie Recommender</h1>
 
         <!-- User Section -->
-        <div class="user-section">
-            <form action="{{ url_for('set_user') }}" method="post" style="display: inline-flex; align-items: center;">
-                <label for="user_id" style="margin-right: 10px; margin-bottom: 0;">User ID:</label>
+        <div class="user-section d-flex justify-content-between align-items-center flex-wrap">
+            <form action="{{ url_for('set_user') }}" method="post" class="d-flex align-items-center mb-2 mb-md-0 me-3">
+                <label for="user_id" class="visually-hidden">User ID:</label>
                 <input type="text" id="user_id" name="user_id" value="{{ user_id if user_id != 'guest' else '' }}"
-                    placeholder="Enter User ID" style="width: 150px; margin-right: 10px;">
+                    placeholder="Enter User ID" class="form-control form-control-sm me-2" style="width: 150px;">
                 <button type="submit" class="btn btn-secondary btn-sm">Set User</button>
             </form>
-            <div>
-                Current User: <strong>{{ user_id }}</strong>
+            <div class="text-end">
+                Current User: <strong class="me-2">{{ user_id }}</strong>
                 {% if user_id != 'guest' %}
-                | <a href="{{ url_for('profile') }}">View Profile & Recommendations</a>
+                <a href="{{ url_for('profile') }}" class="btn btn-outline-primary btn-sm">View Profile &
+                    Recommendations</a>
                 {% endif %}
             </div>
         </div>
@@ -46,150 +143,173 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         {% for category, message in messages %}
-        <div class="alert alert-{{ category }}">{{ message }}</div>
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
         {% endfor %}
         {% endif %}
         {% endwith %}
 
-        <!-- Recommendation Form -->
-        <h2>Find Similar Movies</h2>
-        <form action="{{ url_for('recommend') }}" method="post">
-            <!-- Add Search Facet Selector -->
-            <div class="form-group">
-                <label for="search_facet">Search Based On:</label>
-                <select id="search_facet" name="search_facet">
-                    {% for key, display_name in available_facets.items() %}
-                    <option value="{{ key }}" {% if key==selected_facet %}selected{% endif %}>{{ display_name }}
-                    </option>
+        <div class="row g-5">
+            <!-- Recommendation Column -->
+            <div class="col-md-6">
+                <!-- Wrap form in a card for background -->
+                <div class="card p-4 mb-4">
+                    <h2>Find Similar Movies</h2>
+                    <form action="{{ url_for('recommend') }}" method="post">
+                        <div class="mb-3">
+                            <label for="search_facet" class="form-label">Search Based On:</label>
+                            <select id="search_facet" name="search_facet" class="form-select">
+                                {% for key, display_name in available_facets.items() %}
+                                <option value="{{ key }}" {% if key==selected_facet %}selected{% endif %}>{{
+                                    display_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="title_query" class="form-label">Title:</label>
+                            <input type="text" id="title_query" name="title_query" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label for="overview_query" class="form-label">Overview:</label>
+                            <textarea id="overview_query" name="overview_query" class="form-control"
+                                rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="cast_query" class="form-label">Cast:</label>
+                            <input type="text" id="cast_query" name="cast_query" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label for="director_query" class="form-label">Director:</label>
+                            <input type="text" id="director_query" name="director_query" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label for="tagline_query" class="form-label">Tagline:</label>
+                            <input type="text" id="tagline_query" name="tagline_query" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label for="genres_query" class="form-label">Genres:</label>
+                            <input type="text" id="genres_query" name="genres_query" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label for="top_k" class="form-label">Number of recommendations:</label>
+                            <input type="number" id="top_k" name="top_k" value="5" min="1" max="20" class="form-control"
+                                style="width: 80px;">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Get Recommendations</button>
+                    </form>
+                </div>
+
+                <!-- Recommendation Results -->
+                {% if recommendations %}
+                <div class="results mt-4">
+                    <h3>Recommendations (Based on: {{ available_facets.get(selected_facet, 'Unknown') }})</h3>
+                    {% for rec in recommendations %}
+                    <div class="card result-item">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ rec.title }} <small class="text-muted">(ID: {{ rec.id }})</small>
+                            </h5>
+                            <p class="card-text"><strong>Overview:</strong> {{ rec.overview }}</p>
+                            <p class="card-text"><small class="text-muted"><strong>Cast:</strong> {{ rec.cast }} |
+                                    <strong>Director:</strong> {{ rec.director }} | <strong>Genres:</strong> {{
+                                    rec.genres }}</small></p>
+                            <p class="card-text"><small class="text-muted">Release Date: {{ rec.release_date }} |
+                                    Distance: {{ "%.4f"|format(rec.distance) }}</small></p>
+                            {% if user_id != 'guest' %}
+                            <form action="{{ url_for('add_preference') }}" method="post" style="display: inline;">
+                                <input type="hidden" name="movie_id" value="{{ rec.id }}">
+                                <input type="hidden" name="movie_title" value="{{ rec.title }}">
+                                <button type="submit" class="btn btn-outline-success btn-sm">Add to Preferences</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
                     {% endfor %}
-                    <!-- <option value="combined" {% if 'combined' == selected_facet %}selected{% endif %}>Combined Text</option> -->
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="title_query">Title:</label>
-                <input type="text" id="title_query" name="title_query">
-            </div>
-            <div class="form-group">
-                <label for="overview_query">Overview:</label>
-                <textarea id="overview_query" name="overview_query"></textarea>
-            </div>
-            <div class="form-group">
-                <label for="cast_query">Cast:</label>
-                <input type="text" id="cast_query" name="cast_query">
-            </div>
-            <div class="form-group">
-                <label for="director_query">Director:</label>
-                <input type="text" id="director_query" name="director_query">
-            </div>
-            <div class="form-group">
-                <label for="tagline_query">Tagline:</label>
-                <input type="text" id="tagline_query" name="tagline_query">
-            </div>
-            <div class="form-group">
-                <label for="genres_query">Genres:</label>
-                <input type="text" id="genres_query" name="genres_query">
-            </div>
-            <div class="form-group">
-                <label for="top_k">Number of recommendations:</label>
-                <input type="number" id="top_k" name="top_k" value="5" min="1" max="20">
-            </div>
-            <button type="submit" class="btn btn-primary">Get Recommendations</button>
-        </form>
-
-        <!-- Recommendation Results -->
-        {% if recommendations %}
-        <div class="results">
-            <!-- Optionally indicate which facet was used -->
-            <h3>Recommendations (Based on: {{ available_facets.get(selected_facet, 'Unknown') }})</h3>
-            {% for rec in recommendations %}
-            <div class="result-item">
-                <h4>{{ rec.title }} (ID: {{ rec.id }})</h4>
-                <p><strong>Overview:</strong> {{ rec.overview }}</p>
-                <p><strong>Cast:</strong> {{ rec.cast }} | <strong>Director:</strong> {{ rec.director }} |
-                    <strong>Genres:</strong> {{ rec.genres }}
-                </p>
-                <p><small>Release Date: {{ rec.release_date }} | Distance: {{ "%.4f"|format(rec.distance) }}</small></p>
-                <!-- Add Preference Button -->
-                {% if user_id != 'guest' %}
-                <form action="{{ url_for('add_preference') }}" method="post" style="display: inline;">
-                    <input type="hidden" name="movie_id" value="{{ rec.id }}">
-                    <input type="hidden" name="movie_title" value="{{ rec.title }}">
-                    <button type="submit" class="btn btn-primary btn-sm">Add to Preferences</button>
-                </form>
+                </div>
                 {% endif %}
             </div>
-            {% endfor %}
-        </div>
-        {% endif %}
 
-        <hr>
+            <!-- Add Movie Column -->
+            <div class="col-md-6">
+                <!-- Wrap form in a card for background -->
+                <div class="card p-4 mb-4">
+                    <h2>Add New Movie</h2>
+                    <form action="{{ url_for('add') }}" method="post">
+                        <div class="mb-3">
+                            <label for="new_title" class="form-label">Title *:</label>
+                            <input type="text" id="new_title" name="new_title" required class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label for="new_overview" class="form-label">Overview *:</label>
+                            <textarea id="new_overview" name="new_overview" required class="form-control"
+                                rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="new_cast" class="form-label">Cast:</label>
+                            <input type="text" id="new_cast" name="new_cast" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label for="new_director" class="form-label">Director:</label>
+                            <input type="text" id="new_director" name="new_director" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label for="new_tagline" class="form-label">Tagline:</label>
+                            <input type="text" id="new_tagline" name="new_tagline" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label for="new_genres" class="form-label">Genres:</label>
+                            <input type="text" id="new_genres" name="new_genres" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label for="new_release_date" class="form-label">Release Date (YYYY-MM-DD):</label>
+                            <input type="text" id="new_release_date" name="new_release_date" class="form-control">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Add Movie</button>
+                    </form>
+                </div>
 
-        <!-- Add Movie Form -->
-        <h2>Add New Movie</h2>
-        <form action="{{ url_for('add') }}" method="post">
-            <div class="form-group">
-                <label for="new_title">Title *:</label>
-                <input type="text" id="new_title" name="new_title" required>
-            </div>
-            <div class="form-group">
-                <label for="new_overview">Overview *:</label>
-                <textarea id="new_overview" name="new_overview" required></textarea>
-            </div>
-            <div class="form-group">
-                <label for="new_cast">Cast:</label>
-                <input type="text" id="new_cast" name="new_cast">
-            </div>
-            <div class="form-group">
-                <label for="new_director">Director:</label>
-                <input type="text" id="new_director" name="new_director">
-            </div>
-            <div class="form-group">
-                <label for="new_tagline">Tagline:</label>
-                <input type="text" id="new_tagline" name="new_tagline">
-            </div>
-            <div class="form-group">
-                <label for="new_genres">Genres:</label>
-                <input type="text" id="new_genres" name="new_genres">
-            </div>
-            <div class="form-group">
-                <label for="new_release_date">Release Date (YYYY-MM-DD):</label>
-                <input type="text" id="new_release_date" name="new_release_date">
-            </div>
-            <button type="submit" class="btn btn-primary">Add Movie</button>
-        </form>
-
-        <!-- Add Movie Results -->
-        <!-- Feature 1: Explicit Similar Content Display -->
-        {% if add_results is not none %}
-        <div class="add-results">
-            <!-- This section already implements Feature 1 -->
-            <h3>Movies Similar to "{{ new_movie_title }}" (Newly Added)</h3>
-            {% if add_results %}
-            {% for res in add_results %}
-            <div class="add-item">
-                <h4>{{ res.title }} (ID: {{ res.id }})</h4>
-                <p><strong>Overview:</strong> {{ res.overview }}</p>
-                <p><strong>Cast:</strong> {{ res.cast }} | <strong>Director:</strong> {{ res.director }} |
-                    <strong>Genres:</strong> {{ res.genres }}
-                </p>
-                <p><small>Release Date: {{ res.release_date }} | Distance: {{ "%.4f"|format(res.distance) }}</small></p>
-                <!-- Add Preference Button -->
-                {% if user_id != 'guest' %}
-                <form action="{{ url_for('add_preference') }}" method="post" style="display: inline;">
-                    <input type="hidden" name="movie_id" value="{{ res.id }}">
-                    <input type="hidden" name="movie_title" value="{{ res.title }}">
-                    <button type="submit" class="btn btn-primary btn-sm">Add to Preferences</button>
-                </form>
+                <!-- Add Movie Results -->
+                {% if add_results is not none %}
+                <div class="add-results mt-4">
+                    <h3>Movies Similar to "{{ new_movie_title }}" (Newly Added)</h3>
+                    {% if add_results %}
+                    {% for res in add_results %}
+                    <div class="card add-item">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ res.title }} <small class="text-muted">(ID: {{ res.id }})</small>
+                            </h5>
+                            <p class="card-text"><strong>Overview:</strong> {{ res.overview }}</p>
+                            <p class="card-text"><small class="text-muted"><strong>Cast:</strong> {{ res.cast }} |
+                                    <strong>Director:</strong> {{ res.director }} | <strong>Genres:</strong> {{
+                                    res.genres }}</small></p>
+                            <p class="card-text"><small class="text-muted">Release Date: {{ res.release_date }} |
+                                    Distance: {{ "%.4f"|format(res.distance) }}</small></p>
+                            {% if user_id != 'guest' %}
+                            <form action="{{ url_for('add_preference') }}" method="post" style="display: inline;">
+                                <input type="hidden" name="movie_id" value="{{ res.id }}">
+                                <input type="hidden" name="movie_title" value="{{ res.title }}">
+                                <button type="submit" class="btn btn-outline-success btn-sm">Add to Preferences</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <p>No similar movies found for the newly added item.</p>
+                    {% endif %}
+                </div>
                 {% endif %}
             </div>
-            {% endfor %}
-            {% else %}
-            <p>No similar movies found for the newly added item.</p>
-            {% endif %}
-        </div>
-        {% endif %}
+        </div> <!-- /row -->
 
-    </div>
+    </div> <!-- /container -->
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"></script>
 </body>
 
 </html>

@@ -304,7 +304,7 @@ def add_preference():
         flash(f"An error occurred while adding preference: {e}", "danger")
 
     # Redirect back to the page the user came from (e.g., search results)
-    return redirect(request.referrer or url_for('index'))
+    return redirect(url_for('index'))
 
 
 @app.route('/user_recommendations')

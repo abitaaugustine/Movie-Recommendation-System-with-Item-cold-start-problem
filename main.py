@@ -79,7 +79,7 @@ def get_milvus_collection():
         FieldSchema(name="genres", dtype=DataType.VARCHAR, max_length=500),
         FieldSchema(name="release_date", dtype=DataType.VARCHAR, max_length=20),
         # Separate embedding fields
-        FieldSchema(name="title_embedding", dtype=DataType.FLOAT_VECTOR, dim=DIMENSION),
+        FieldSchema(name="original_title_embedding", dtype=DataType.FLOAT_VECTOR, dim=DIMENSION),
         FieldSchema(name="overview_embedding", dtype=DataType.FLOAT_VECTOR, dim=DIMENSION),
         FieldSchema(name="cast_embedding", dtype=DataType.FLOAT_VECTOR, dim=DIMENSION),
         FieldSchema(name="genres_embedding", dtype=DataType.FLOAT_VECTOR, dim=DIMENSION),
@@ -98,7 +98,7 @@ def get_milvus_collection():
     try:
         collection.create_index(field_name=SEARCH_FIELD, index_params=index_params, index_name=f"_{SEARCH_FIELD}_index") # Naming the index
         # Optionally create indexes on other vector fields if needed for different search types
-        collection.create_index(field_name="title_embedding", index_params=index_params)
+        collection.create_index(field_name="original_title_embedding", index_params=index_params)
         collection.create_index(field_name="cast_embedding", index_params=index_params)
         collection.create_index(field_name="genres_embedding", index_params=index_params)
         logging.info("Index created.")
@@ -182,38 +182,60 @@ def generate_multiple_embeddings(df, fields_to_embed):
 
 
 # --- Milvus Operations ---
-def insert_data_to_milvus(collection, df, embeddings_dict):
+def insert_data_to_milvus(collection, df, embeddings_dict, batch_size=100):
     """Inserts data with multiple embeddings into the Milvus collection."""
     if df is None or embeddings_dict is None:
         logging.error("Invalid data or embeddings for insertion.")
         return
+    
+    total_records = len(df)
+    inserted_pks = [] # Keep track of all inserted primary keys
 
-    # Prepare data for Milvus insertion - ensure order matches schema
-    data_to_insert = [
-        df['original_title'].tolist(),
-        df['overview'].tolist(),
-        df['cast'].tolist(),
-        df['director'].tolist(),
-        df['tagline'].tolist(),
-        df['genres'].tolist(),
-        df['release_date'].astype(str).tolist(), # Ensure release_date is string
-        # Add the embedding lists in the correct order based on schema
-        embeddings_dict['title_embedding'],
-        embeddings_dict['overview_embedding'],
-        embeddings_dict['cast_embedding'],
-        embeddings_dict['genres_embedding'],
-    ]
+    logging.info(f"Starting batch insertion of {total_records} records with batch size {batch_size}...")
 
-    try:
-        logging.info(f"Inserting {len(df)} records into Milvus...")
-        mr = collection.insert(data_to_insert)
-        collection.flush() # Ensure data is written
-        logging.info(f"Successfully inserted data. Primary keys count: {len(mr.primary_keys)}")
-        logging.info(f"Total entities in collection after insert: {collection.num_entities}")
-        return mr.primary_keys # Return the IDs of inserted entities
-    except Exception as e:
-        logging.error(f"Error inserting data into Milvus: {e}")
-        return None
+    for i in range(0, total_records, batch_size):
+        batch_end = min(i + batch_size, total_records)
+        logging.info(f"Inserting batch {i // batch_size + 1}: records {i} to {batch_end-1}")
+
+        # Slice the DataFrame and embedding lists for the current batch
+        df_batch = df.iloc[i:batch_end]
+        title_embeddings_batch = embeddings_dict['original_title_embedding'][i:batch_end]
+        overview_embeddings_batch = embeddings_dict['overview_embedding'][i:batch_end]
+        cast_embeddings_batch = embeddings_dict['cast_embedding'][i:batch_end]
+        genres_embeddings_batch = embeddings_dict['genres_embedding'][i:batch_end]
+
+        # Prepare data for Milvus insertion for the current batch
+        data_to_insert = [
+            df_batch['original_title'].tolist(),
+            df_batch['overview'].tolist(),
+            df_batch['cast'].tolist(),
+            df_batch['director'].tolist(),
+            df_batch['tagline'].tolist(),
+            df_batch['genres'].tolist(),
+            df_batch['release_date'].astype(str).tolist(),
+            title_embeddings_batch,
+            overview_embeddings_batch,
+            cast_embeddings_batch,
+            genres_embeddings_batch,
+        ]
+
+        try:
+            mr = collection.insert(data_to_insert)
+            inserted_pks.extend(mr.primary_keys)
+            # Consider flushing less frequently (e.g., after loop) if performance is an issue
+            # but flushing after each batch ensures data is written incrementally.
+            collection.flush()
+            logging.info(f"Batch {i // batch_size + 1} inserted. PKs count in batch: {len(mr.primary_keys)}")
+
+        except Exception as e:
+            logging.error(f"Error inserting batch {i // batch_size + 1} into Milvus: {e}")
+            # Decide how to handle partial failure: continue, stop, rollback?
+            # For now, we'll log and continue, returning the PKs inserted so far.
+            return inserted_pks # Return keys inserted up to the point of failure
+
+    logging.info(f"Successfully inserted all {total_records} records in batches.")
+    logging.info(f"Total entities in collection after insert: {collection.num_entities}")
+    return inserted_pks # Return all primary keys from successful insertions
 
 
 def search_similar_movies(collection, query_embedding, search_field=SEARCH_FIELD, top_k=5, exclude_ids=None):
@@ -305,7 +327,7 @@ def add_new_movie(collection, movie_data):
         [movie_data.get('tagline', '')],
         [movie_data.get('genres', '')],
         [str(movie_data.get('release_date', ''))], # Ensure string
-        embeddings_dict['title_embedding'],
+        embeddings_dict['original_title_embedding'],
         embeddings_dict['overview_embedding'],
         embeddings_dict['cast_embedding'],
         embeddings_dict['genres_embedding'],
